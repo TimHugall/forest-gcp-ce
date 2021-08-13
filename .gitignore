@@ -1,0 +1,6 @@
+*.tfvars
+*.zip
+objects/worlds/*.db*
+objects/worlds/*.fwl*
+objects/worlds/*.vdf*
+.terraform*
