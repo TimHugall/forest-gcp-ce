@@ -115,7 +115,7 @@ resource "google_compute_instance" "forest" {
   cd docker-the-forest-dedicated-server
   mkdir -p srv/tfds/steamcmd:/steamcmd
   mkdir -p srv/tfds/game
-  gsutil cp gs://${google_storage_bucket.foest.name}/${google_storage_bucket_object.config.output_name} .
+  gsutil cp gs://${google_storage_bucket.forest.name}/${google_storage_bucket_object.config.output_name} .
   sed -i 's/\/srv/srv/g' docker-compose.yml
   chown -R ubuntu:ubuntu ../docker-the-forest-dedicated-server
   docker-compose up -d
@@ -126,13 +126,11 @@ resource "google_compute_instance" "forest" {
 }
 
 locals {
-  ports = toset(
-    [
+  ports = [
       "8766",
       "27015",
       "27016"
     ]
-  )
 }
 
 resource "google_compute_firewall" "forest" {
