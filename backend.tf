@@ -1,6 +1,6 @@
 terraform {
   backend "gcs" {
-    bucket = "hugall-terraform-state"
+    bucket = "hugall8-terraform-state"
     prefix = "terraform/forest"
   }
 }

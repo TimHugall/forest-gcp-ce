@@ -20,63 +20,13 @@ locals {
 
 resource "google_storage_bucket_object" "config" {
   name   = "server.cfg"
-  source = <<EOF
-// Dedicated Server Settings.
-// Server IP address - Note: If you have a router, this address is the internal address, and you need to configure ports forwarding
-serverIP ${local.server_ip}
-// Steam Communication Port - Note: If you have a router you will need to open this port.
-serverSteamPort 8766
-// Game Communication Port - Note: If you have a router you will need to open this port.
-serverGamePort 27015
-// Query Communication Port - Note: If you have a router you will need to open this port.
-serverQueryPort 27016
-// Server display name
-serverName ${var.server_name}
-// Maximum number of players
-serverPlayers 6
-// Enable VAC (Valve Anti-cheat System at the server. Must be set off or on
-enableVAC off
-// Server password. blank means no password
-serverPassword ${var.server_password}
-// Server administration password. blank means no password
-serverPasswordAdmin ${var.server_admin_password}
-// Your Steam account name. blank means anonymous
-serverSteamAccount ${var.login_token}
-// Time between server auto saves in minutes - The minumum time is 15 minutes, the default time is 30
-serverAutoSaveInterval 30
-// Game difficulty mode. Must be set to Peaceful Normal or Hard
-difficulty Hard
-// New or continue a game. Must be set to New or Continue
-initType Continue
-// Slot to save the game. Must be set 1 2 3 4 or 5
-slot 1
-// Show event log. Must be set off or on
-showLogs off
-// Contact email for server admin
-serverContact email@gmail.com
-// No enemies
-veganMode off
-// No enemies during day time
-vegetarianMode off
-// Reset all structure holes when loading a save
-resetHolesMode off
-// Regrow 10% of cut down trees when sleeping
-treeRegrowMode off
-// Allow building destruction
-allowBuildingDestruction on
-// Allow enemies in creative games
-allowEnemiesCreativeMode off
-// Allow clients to use the built in debug console
-allowCheats off
-// Use full weapon damage values when attacking other players
-realisticPlayerDamage off
-// Allows defining a custom folder for save slots, leave empty to use the default location
-saveFolderPath
-// Target FPS when no client is connected
-targetFpsIdle 0
-// Target FPS when there is at least one client connected
-targetFpsActive 0
-EOF
+  source = "objects/server.cfg"
+  bucket = google_storage_bucket.forest.name
+}
+
+resource "google_storage_bucket_object" "compose" {
+  name   = "docker-compose.yml"
+  source = "objects/docker-compose.yml"
   bucket = google_storage_bucket.forest.name
 }
 
@@ -111,14 +61,23 @@ resource "google_compute_instance" "forest" {
   curl -fsSL https://get.docker.com -o get-docker.sh
   sudo sh get-docker.sh
   sudo apt -y install docker-compose unzip zip
+  sudo usermod -aG docker ubuntu
+  cd /home/ubuntu
   git clone https://github.com/jammsen/docker-the-forest-dedicated-server.git
   cd docker-the-forest-dedicated-server
-  mkdir -p srv/tfds/steamcmd:/steamcmd
+  mkdir -p srv/tfds/steamcmd
   mkdir -p srv/tfds/game
-  gsutil cp gs://${google_storage_bucket.forest.name}/${google_storage_bucket_object.config.output_name} .
-  sed -i 's/\/srv/srv/g' docker-compose.yml
+  gsutil cp gs://${google_storage_bucket.forest.name}/${google_storage_bucket_object.config.output_name} srv/tfds/server.cfg
   chown -R ubuntu:ubuntu ../docker-the-forest-dedicated-server
-  docker-compose up -d
+  chmod u+rwx ../docker-the-forest-dedicated-server
+  sed -i 's/0\.0\.0\.0/${local.server_ip}/g' srv/tfds/server.cfg
+  sed -i 's/jammsen-docker-generated/${var.server_name}/g' srv/tfds/server.cfg
+  sed -i 's/serverPassword/serverPassword ${var.server_password}/g' srv/tfds/server.cfg
+  sed -i 's/serverPasswordAdmin/serverPasswordAdmin ${var.server_admin_password}/g' srv/tfds/server.cfg
+  sed -i 's/serverSteamAccount/serverSteamAccount ${var.login_token}/g' srv/tfds/server.cfg
+  gsutil cp gs://${google_storage_bucket.forest.name}/${google_storage_bucket_object.compose.output_name} .
+  chmod a+x ${google_storage_bucket_object.compose.output_name}
+  sudo docker-compose up -d
   EOT
 
   # Apply the firewall rule to allow external IPs to access this instance
