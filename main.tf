@@ -4,6 +4,7 @@ data "google_compute_image" "ubuntu2004" {
 }
 
 resource "google_storage_bucket" "forest" {
+  force_destroy = true
   name = format("forest-%s", lower(var.login_token)) # Could also use account ID?
   versioning {
     enabled = true
@@ -21,6 +22,12 @@ locals {
 resource "google_storage_bucket_object" "config" {
   name   = "server.cfg"
   source = "objects/server.cfg"
+  bucket = google_storage_bucket.forest.name
+}
+
+resource "google_storage_bucket_object" "save" {
+  name   = "Slot2-20210915T124805Z-001.zip"
+  source = "saves/Slot2-20210915T124805Z-001.zip"
   bucket = google_storage_bucket.forest.name
 }
 
@@ -67,23 +74,22 @@ resource "google_compute_instance" "forest" {
   cd docker-the-forest-dedicated-server
   mkdir -p srv/tfds/steamcmd
   mkdir -p srv/tfds/game
-  gsutil cp gs://${google_storage_bucket.forest.name}/${google_storage_bucket_object.config.output_name} srv/tfds/server.cfg
+  gsutil cp gs://${google_storage_bucket.forest.name}/${google_storage_bucket_object.config.output_name} srv/tfds/game/config/server.cfg
   chown -R ubuntu:ubuntu ../docker-the-forest-dedicated-server
   chmod u+rwx ../docker-the-forest-dedicated-server
-  sed -i 's/0\.0\.0\.0/${local.server_ip}/g' srv/tfds/server.cfg
-  sed -i 's/jammsen-docker-generated/${var.server_name}/g' srv/tfds/server.cfg
-  sed -i 's/serverPassword/serverPassword ${var.server_password}/g' srv/tfds/server.cfg
-  sed -i 's/serverPasswordAdmin/serverPasswordAdmin ${var.server_admin_password}/g' srv/tfds/server.cfg
-  sed -i 's/serverSteamAccount/serverSteamAccount ${var.login_token}/g' srv/tfds/server.cfg
+  sed -i 's/jammsen-docker-generated/${var.server_name}/g' srv/tfds/game/config/server.cfg
+  sed -i 's/serverPassword/serverPassword ${var.server_password}/g' srv/tfds/game/config/server.cfg
+  sed -i 's/serverPasswordAdmin/serverPasswordAdmin ${var.server_admin_password}/g' srv/tfds/game/config/server.cfg
   gsutil cp gs://${google_storage_bucket.forest.name}/${google_storage_bucket_object.compose.output_name} .
   chmod a+x ${google_storage_bucket_object.compose.output_name}
-  sudo docker-compose up -d
   EOT
 
   # Apply the firewall rule to allow external IPs to access this instance
   tags = ["forest-server"]
 }
 
+#   sed -i 's/0\.0\.0\.0/${local.server_ip}/g' srv/tfds/game/config/server.cfg\
+#   sed -i 's/serverSteamAccount/serverSteamAccount ${var.login_token}/g' srv/tfds/game/config/server.cfg
 locals {
   ports = [
       "8766",

@@ -1,6 +1,7 @@
 version: "3.7"
 services:
   the-forest-dedicated-server:
+    network: host
     container_name: the-forest-dedicated-server
     image: jammsen/the-forest-dedicated-server:latest
     restart: always
