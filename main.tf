@@ -1,6 +1,6 @@
-data "google_compute_image" "ubuntu2004" {
-  family  = "ubuntu-2004-lts"
-  project = "ubuntu-os-cloud"
+data "google_compute_image" "gci_image" {
+  family  = "debian-10"
+  project = "debian-cloud"
 }
 
 resource "google_storage_bucket" "forest" {
@@ -19,12 +19,6 @@ locals {
   server_ip = split("/", var.ssh_source_cidr).0
 }
 
-resource "google_storage_bucket_object" "config" {
-  name   = "server.cfg"
-  source = "objects/server.cfg"
-  bucket = google_storage_bucket.forest.name
-}
-
 resource "google_storage_bucket_object" "save" {
   name   = "Slot2-20210915T124805Z-001.zip"
   source = "saves/Slot2-20210915T124805Z-001.zip"
@@ -38,15 +32,12 @@ resource "google_storage_bucket_object" "compose" {
 }
 
 resource "google_compute_instance" "forest" {
-  depends_on = [
-    google_storage_bucket_object.config
-  ]
   name         = "forest"
-  machine_type = "e2-medium" # 2 vCPUs, 4G RAM
+  machine_type = "e2-standard-4"
   zone         = format("%s-a", var.region)
   boot_disk {
     initialize_params {
-      image = data.google_compute_image.ubuntu2004.self_link
+      image = data.google_compute_image.gci_image.self_link
     }
   }
 
@@ -67,29 +58,32 @@ resource "google_compute_instance" "forest" {
   metadata_startup_script = <<EOT
   curl -fsSL https://get.docker.com -o get-docker.sh
   sudo sh get-docker.sh
-  sudo apt -y install docker-compose unzip zip
-  sudo usermod -aG docker ubuntu
-  cd /home/ubuntu
+  sudo apt -y install unzip zip git lsof
+  sudo usermod -aG docker root
+  sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+  sudo chmod +x /usr/local/bin/docker-compose
+  sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+  cd /root
   git clone https://github.com/jammsen/docker-the-forest-dedicated-server.git
   cd docker-the-forest-dedicated-server
   mkdir -p srv/tfds/steamcmd
   mkdir -p srv/tfds/game
-  gsutil cp gs://${google_storage_bucket.forest.name}/${google_storage_bucket_object.config.output_name} srv/tfds/game/config/server.cfg
-  chown -R ubuntu:ubuntu ../docker-the-forest-dedicated-server
-  chmod u+rwx ../docker-the-forest-dedicated-server
-  sed -i 's/jammsen-docker-generated/${var.server_name}/g' srv/tfds/game/config/server.cfg
-  sed -i 's/serverPassword/serverPassword ${var.server_password}/g' srv/tfds/game/config/server.cfg
-  sed -i 's/serverPasswordAdmin/serverPasswordAdmin ${var.server_admin_password}/g' srv/tfds/game/config/server.cfg
+  sed -i 's/jammsen-docker-generated/${var.server_name}/g' server.cfg.example
+  sed -i 's/serverPassword/serverPassword ${var.server_password}/g' server.cfg.example
+  sed -i 's/serverPasswordAdmin/serverPasswordAdmin ${var.server_admin_password}/g' server.cfg.example
+  sed -i 's/serverSteamAccount/serverSteamAccount ${var.login_token}/g' server.cfg.example
   gsutil cp gs://${google_storage_bucket.forest.name}/${google_storage_bucket_object.compose.output_name} .
-  chmod a+x ${google_storage_bucket_object.compose.output_name}
-  EOT
-
+  chmod -R u+rwx ../docker-the-forest-dedicated-server
+  docker-compose up -d
+EOT
+  #  docker-compose up -d && docker-compose down
+  #  cp server.cfg.example srv/tfds/game/config/config.cfg
   # Apply the firewall rule to allow external IPs to access this instance
+  #   sed -i 's/0\.0\.0\.0/${local.server_ip}/g' server.cfg.example\
   tags = ["forest-server"]
 }
 
-#   sed -i 's/0\.0\.0\.0/${local.server_ip}/g' srv/tfds/game/config/server.cfg\
-#   sed -i 's/serverSteamAccount/serverSteamAccount ${var.login_token}/g' srv/tfds/game/config/server.cfg
+
 locals {
   ports = [
       "8766",
