@@ -12,5 +12,5 @@ version: "3.7"
         - 27016:27016/tcp
         - 27016:27016/udp
       volumes:
-        - /srv/tfds/steamcmd:/steamcmd
-        - /srv/tfds/game:/theforest
+        - ./srv/tfds/steamcmd:/steamcmd
+        - ./srv/tfds/game:/theforest

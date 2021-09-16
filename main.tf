@@ -58,7 +58,7 @@ resource "google_compute_instance" "forest" {
   metadata_startup_script = <<EOT
   curl -fsSL https://get.docker.com -o get-docker.sh
   sudo sh get-docker.sh
-  sudo apt -y install unzip zip git lsof
+  sudo apt -y install unzip zip git lsof p7zip
   sudo usermod -aG docker root
   sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
   sudo chmod +x /usr/local/bin/docker-compose
@@ -67,7 +67,11 @@ resource "google_compute_instance" "forest" {
   git clone https://github.com/jammsen/docker-the-forest-dedicated-server.git
   cd docker-the-forest-dedicated-server
   mkdir -p srv/tfds/steamcmd
-  mkdir -p srv/tfds/game
+  mkdir -p srv/tfds/game/saves
+  cd srv/tfds/game/saves/
+  gsutil cp gs://${google_storage_bucket.forest.name}/${google_storage_bucket_object.save.output_name} .
+  7z x ${google_storage_bucket_object.save.output_name}
+  cd cd /root/docker-the-forest-dedicated-server
   sed -i 's/jammsen-docker-generated/${var.server_name}/g' server.cfg.example
   sed -i 's/serverPassword/serverPassword ${var.server_password}/g' server.cfg.example
   sed -i 's/serverPasswordAdmin/serverPasswordAdmin ${var.server_admin_password}/g' server.cfg.example
