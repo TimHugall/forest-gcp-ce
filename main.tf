@@ -1,6 +1,6 @@
-data "google_compute_image" "gci_image" {
-  family  = "debian-10"
-  project = "debian-cloud"
+data "google_compute_image" "ubuntu2004" {
+  family  = "ubuntu-2004-lts"
+  project = "ubuntu-os-cloud"
 }
 
 resource "google_storage_bucket" "forest" {
@@ -62,35 +62,30 @@ resource "google_compute_instance" "forest" {
 
   metadata_startup_script = <<EOT
   curl -fsSL https://get.docker.com -o get-docker.sh
-  sudo sh get-docker.sh
-  sudo apt -y install unzip zip git lsof p7zip-full
-  sudo usermod -aG docker root
-  sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-  sudo chmod +x /usr/local/bin/docker-compose
-  sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
-  cd /root
+  sh get-docker.sh
+  apt -y install unzip zip git lsof p7zip-full
+  usermod -aG docker ubuntu
+  curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+  chmod +x /usr/local/bin/docker-compose
+  ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+  mkdir -p /srv/tfds/steamcmd
+  mkdir -p /srv/tfds/game/savesMultiplayer
+  mkdir /srv/tfds/game/config
+  gsutil cp gs://${google_storage_bucket.forest.name}/${google_storage_bucket_object.config.output_name} /srv/tfds/game/config/config.cfg
+  sudo chattr +i /srv/tfds/game/config/config.cfg
+  chmod -R u+rwx /srv
+  su - ubuntu
+  cd /home/ubuntu
   git clone https://github.com/jammsen/docker-the-forest-dedicated-server.git
   cd docker-the-forest-dedicated-server
-  gsutil cp gs://${google_storage_bucket.forest.name}/${google_storage_bucket_object.config.output_name} .
-  sed -i 's/jammsen-docker-generated/${var.server_name}/g' server.cfg.example
-  sed -i 's/serverPassword/serverPassword ${var.server_password}/g' server.cfg.example
-  sed -i 's/serverPasswordAdmin/serverPasswordAdmin ${var.server_admin_password}/g' server.cfg.example
-  sed -i 's/serverSteamAccount/serverSteamAccount ${var.login_token}/g' server.cfg.example
-  mkdir -p srv/tfds/steamcmd
-  mkdir -p srv/tfds/game/saves
-  cd srv/tfds/game/saves/
-  gsutil cp gs://${google_storage_bucket.forest.name}/${google_storage_bucket_object.save.output_name} .
-  7z x ${google_storage_bucket_object.save.output_name}
-  rm -r *.zip
-  cd /root/docker-the-forest-dedicated-server
-  gsutil cp gs://${google_storage_bucket.forest.name}/${google_storage_bucket_object.compose.output_name} .
-  chmod -R u+rwx ../docker-the-forest-dedicated-server
+  gsutil cp gs://${google_storage_bucket.forest.name}/${google_storage_bucket_object.compose.output_name} docker-compose.yml
+  gsutil cp gs://${google_storage_bucket.forest.name}/${google_storage_bucket_object.save.output_name} /srv/tfds/game/savesMultiplayer/Slot.zip
+  cd /srv/tfds/game/savesMultiplayer
+  sudo 7z x Slot.zip
+  sudo rm -r Slot.zip
+  cd /home/ubuntu/docker-the-forest-dedicated-server
   docker-compose up -d
 EOT
-  #  docker-compose up -d && docker-compose down
-  #  cp server.cfg.example srv/tfds/game/config/config.cfg
-  # Apply the firewall rule to allow external IPs to access this instance
-  #   sed -i 's/0\.0\.0\.0/${local.server_ip}/g' server.cfg.example\
   tags = ["forest-server"]
 }
 
